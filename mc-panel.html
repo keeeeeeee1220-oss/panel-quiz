@@ -6,178 +6,304 @@
 <title>MC コントロールパネル</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --surface-2: #252545;
+  --accent: #ff6b35;
+  --accent-glow: rgba(255,107,53,0.3);
+  --correct: #00c9a7;
+  --incorrect: #ff4757;
+  --text: #e8e8f0;
+  --text-dim: #8888a8;
+  --border: #33334f;
+}
 body {
-  background: #0f0f1a; color: #e8e8f0;
+  background: var(--bg); color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-  padding: 20px;
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  padding: 10px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
   min-height: 100dvh;
   -webkit-tap-highlight-color: transparent;
 }
-.container { max-width: 500px; margin: 0 auto; }
-h1 {
-  font-size: 22px; margin-bottom: 20px; text-align: center;
-  color: #ff6b35; letter-spacing: 0.05em;
+.container { max-width: 900px; margin: 0 auto; }
+
+/* ステータスヘッダー */
+.status-header {
+  background: linear-gradient(135deg, var(--surface), var(--surface-2));
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
-.status-box {
-  background: linear-gradient(135deg, #1a1a2e, #252545);
-  border-radius: 16px;
-  padding: 32px 24px; margin-bottom: 24px;
+.status-main { display: flex; align-items: center; gap: 14px; }
+.status-q {
+  font-size: 34px; font-weight: 900;
+  color: var(--accent); line-height: 1;
+  min-width: 60px;
+}
+.status-text-block { display: flex; flex-direction: column; }
+.status-phase { font-size: 15px; font-weight: 700; }
+.status-progress { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.conn-indicator {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-dim);
+}
+.conn-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--correct);
+  animation: pulse 2s ease-in-out infinite;
+}
+.conn-dot.error { background: var(--incorrect); animation: none; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* セクション */
+.section {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.section-title {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* テーブル */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+th, td {
+  padding: 7px 4px;
   text-align: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  border-bottom: 1px solid #22224a;
 }
-.status-label {
-  font-size: 12px; color: #8888a8;
-  letter-spacing: 0.15em; text-transform: uppercase;
+th {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
-.status-value {
-  font-size: 56px; font-weight: 900;
-  margin: 8px 0 4px; color: #ff6b35;
-  line-height: 1;
+td.name-cell {
+  text-align: left;
+  font-weight: 700;
+  padding-left: 6px;
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.status-desc { font-size: 17px; color: #e8e8f0; font-weight: 600; }
-.next-hint {
-  font-size: 13px; color: #8888a8;
-  margin-top: 12px; padding-top: 12px;
-  border-top: 1px solid #33334f;
+.mark-o { color: var(--correct); font-weight: 800; font-size: 14px; }
+.mark-x { color: var(--incorrect); font-weight: 800; font-size: 14px; }
+.mark-none { color: #444466; }
+td.score-cell {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 14px;
 }
-.controls { display: grid; gap: 12px; margin-bottom: 20px; }
+.panels-detail {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: 'SF Mono', Menlo, monospace;
+  letter-spacing: 0.1em;
+}
+.empty-msg {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 16px;
+  font-size: 12px;
+}
+
+/* ボーナス */
+.bonus-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bonus-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.bonus-input:focus { border-color: var(--accent); }
+.bonus-status {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  min-height: 32px;
+}
+.bonus-status.active {
+  background: rgba(0,201,167,0.1);
+  color: var(--correct);
+  font-weight: 700;
+}
+
+/* ボタン */
 .btn {
-  padding: 20px; border: none; border-radius: 10px;
-  font-size: 17px; font-weight: 700;
+  padding: 12px 16px;
+  border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 700;
   cursor: pointer; touch-action: manipulation;
   transition: transform 0.15s, opacity 0.15s;
   color: inherit; font-family: inherit;
+  white-space: nowrap;
 }
 .btn:active { transform: scale(0.97); }
-.btn:disabled { opacity: 0.4; pointer-events: none; }
+.btn:disabled { opacity: 0.35; pointer-events: none; }
 .btn-primary {
-  background: #ff6b35; color: #fff;
-  font-size: 20px; padding: 22px;
+  background: var(--accent); color: #fff;
+  font-size: 16px; padding: 16px;
+  width: 100%;
 }
-.btn-secondary { background: #252545; color: #e8e8f0; }
-.btn-danger { background: #3a1a2a; color: #ff8899; border: 1px solid #ff4757; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.log-box {
-  background: #1a1a2e; border-radius: 10px;
-  padding: 12px 14px; margin-top: 8px;
-  font-size: 12px; color: #8888a8;
-  max-height: 180px; overflow-y: auto;
+.btn-secondary { background: var(--surface-2); color: var(--text); }
+.btn-danger {
+  background: #3a1a2a; color: #ff8899;
+  border: 1px solid var(--incorrect);
+}
+
+.controls {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ログ */
+.log {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  max-height: 120px;
+  overflow-y: auto;
   font-family: 'SF Mono', Menlo, monospace;
   line-height: 1.6;
 }
-.log-box .ts { color: #555577; margin-right: 6px; }
-.connection-dot {
-  display: inline-block; width: 8px; height: 8px;
-  border-radius: 50%; background: #00c9a7;
-  margin-right: 6px; vertical-align: middle;
-  animation: pulse 2s ease-in-out infinite;
-}
-.connection-dot.error { background: #ff4757; animation: none; }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-.connection {
-  text-align: center; font-size: 12px;
-  color: #8888a8; margin-bottom: 20px;
+.log .ts { color: #555577; margin-right: 6px; }
+
+/* PC最適化 */
+@media (min-width: 700px) {
+  th, td { font-size: 13px; padding: 8px 6px; }
+  .section { padding: 14px 18px; }
 }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🎮 MC コントロール</h1>
-
-  <div class="connection">
-    <span class="connection-dot" id="conn-dot"></span>
-    <span id="conn-text">接続中...</span>
-  </div>
-
-  <div class="status-box">
-    <div class="status-label">現在の状態</div>
-    <div class="status-value" id="current-q">?</div>
-    <div class="status-desc" id="current-desc">読み込み中...</div>
-    <div class="next-hint" id="next-hint"></div>
-  </div>
-
-  <div class="controls">
-    <button class="btn btn-primary" id="next-btn" onclick="advance()">▶ 次へ進む</button>
-    <div class="row">
-      <button class="btn btn-secondary" id="back-btn" onclick="back()">◀ 前へ戻す</button>
-      <button class="btn btn-secondary" onclick="jumpToEnd()">⏭ 結果発表へ</button>
+  <!-- ステータス -->
+  <div class="status-header">
+    <div class="status-main">
+      <div class="status-q" id="status-q">?</div>
+      <div class="status-text-block">
+        <div class="status-phase" id="status-phase">読み込み中...</div>
+        <div class="status-progress" id="status-progress"></div>
+      </div>
     </div>
-    <button class="btn btn-danger" onclick="reset()">🔄 待機画面に戻す（リセット）</button>
+    <div class="conn-indicator">
+      <span class="conn-dot" id="conn-dot"></span>
+      <span id="conn-text">接続中...</span>
+    </div>
   </div>
 
-  <div class="log-box" id="log"></div>
+  <!-- 現在の問題の状況 -->
+  <div class="section" id="current-detail-section">
+    <div class="section-title" id="current-detail-title">現在の問題</div>
+    <table id="current-detail-table"></table>
+  </div>
+
+  <!-- 得点表 -->
+  <div class="section">
+    <div class="section-title">得点表</div>
+    <table id="scores-table"></table>
+  </div>
+
+  <!-- 最終ボーナス -->
+  <div class="section">
+    <div class="section-title">最終問題ボーナス</div>
+    <div class="bonus-row">
+      <input class="bonus-input" id="bonus-input" type="number" placeholder="点数" min="0" max="999" value="0">
+      <button class="btn btn-secondary" onclick="submitBonus()">確定</button>
+    </div>
+    <div class="bonus-status" id="bonus-status"></div>
+  </div>
+
+  <!-- 操作ボタン -->
+  <div class="controls">
+    <button class="btn btn-primary" id="advance-btn" onclick="advance()">▶ 次へ</button>
+    <div class="control-row">
+      <button class="btn btn-secondary" id="back-btn" onclick="back()">◀ 戻る</button>
+      <button class="btn btn-danger" onclick="doReset()">🔄 リセット</button>
+    </div>
+  </div>
+
+  <div class="log" id="log"></div>
 </div>
 
 <script>
 // =============================================================
-//   ★ ここに GAS のデプロイURL を貼ってください ★
+//   ★ GASのデプロイURLを貼ってください ★
 // =============================================================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbw90vq_cB9x0zgRSwvBL9jBihemOieY8dJVDRpQwFqX6V32gdF-4qQsw5PqxmNsKKGkgw/exec';
+const POLL_INTERVAL = 3000;
 
 const QUESTION_LABELS = ['例題', '第1問', '第2問', '第3問', '第4問', '第5問'];
 const MAX_Q = QUESTION_LABELS.length - 1; // 5
 
-let currentQ = null;
+const PHASE_LABELS = {
+  waiting: '待機中',
+  '1st': '1stラウンド 解答中',
+  '1st_result': '1st結果発表中',
+  '2nd': '2ndラウンド 解答中',
+  '2nd_result': '2nd結果発表中',
+  final: '最終結果'
+};
 
-// -------------------- 表示更新 --------------------
-function updateDisplay() {
-  const qEl = document.getElementById('current-q');
-  const descEl = document.getElementById('current-desc');
-  const nextEl = document.getElementById('next-hint');
-  const nextBtn = document.getElementById('next-btn');
-  const backBtn = document.getElementById('back-btn');
+let mcState = { currentQuestion: -1, currentPhase: 'waiting', finalBonus: 0 };
+let currentScores = [];
 
-  if (currentQ === null) {
-    qEl.textContent = '?';
-    descEl.textContent = '取得中';
-    nextEl.textContent = '';
-    return;
-  }
-
-  if (currentQ === -1) {
-    qEl.textContent = '⏸';
-    descEl.textContent = '待機中';
-    nextEl.textContent = '「次へ進む」で 例題 を開始';
-    nextBtn.textContent = '▶ 例題を開始';
-    backBtn.disabled = true;
-  } else if (currentQ === 99) {
-    qEl.textContent = '🏁';
-    descEl.textContent = 'ゲーム終了';
-    nextEl.textContent = '全プレイヤーに結果発表画面が表示中';
-    nextBtn.disabled = true;
-    backBtn.disabled = false;
-  } else if (currentQ >= 0 && currentQ <= MAX_Q) {
-    qEl.textContent = 'Q' + currentQ;
-    descEl.textContent = QUESTION_LABELS[currentQ];
-    if (currentQ < MAX_Q) {
-      nextEl.textContent = '「次へ進む」で ' + QUESTION_LABELS[currentQ + 1] + ' へ';
-      nextBtn.textContent = '▶ ' + QUESTION_LABELS[currentQ + 1] + ' へ進む';
-    } else {
-      nextEl.textContent = '「次へ進む」で 結果発表 へ';
-      nextBtn.textContent = '⏭ 結果発表へ';
-    }
-    nextBtn.disabled = false;
-    backBtn.disabled = false;
-  } else {
-    qEl.textContent = '?';
-    descEl.textContent = '不明な状態: ' + currentQ;
-  }
+// -------- ユーティリティ --------
+function panelToLetter(idx) {
+  return String.fromCharCode(65 + Number(idx));
 }
-
-// -------------------- ログ --------------------
-function log(msg, isError) {
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text == null ? '' : text;
+  return d.innerHTML;
+}
+function log(msg, isErr) {
   const el = document.getElementById('log');
-  const time = new Date().toLocaleTimeString('ja-JP');
-  const color = isError ? '#ff4757' : '#8888a8';
-  el.innerHTML = `<div style="color:${color}"><span class="ts">${time}</span>${msg}</div>` + el.innerHTML;
+  const t = new Date().toLocaleTimeString('ja-JP');
+  const color = isErr ? 'var(--incorrect)' : 'var(--text-dim)';
+  el.innerHTML = `<div style="color:${color}"><span class="ts">${t}</span>${msg}</div>` + el.innerHTML;
 }
 
-// -------------------- 通信 --------------------
-function jsonpFetch() {
+// -------- 通信 --------
+function jsonpFetch(url) {
   return new Promise((resolve, reject) => {
     if (!GAS_URL) { reject(new Error('GAS_URL未設定')); return; }
     const cb = 'cb_' + Math.random().toString(36).slice(2, 10);
@@ -185,82 +311,303 @@ function jsonpFetch() {
     window[cb] = data => { resolve(data); cleanup(); };
     const s = document.createElement('script');
     s.onerror = () => { reject(new Error('通信失敗')); cleanup(); };
-    s.src = GAS_URL + '?callback=' + cb + '&t=' + Date.now();
+    s.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + cb + '&t=' + Date.now();
     document.body.appendChild(s);
     setTimeout(() => { if (window[cb]) { reject(new Error('タイムアウト')); cleanup(); } }, 8000);
   });
 }
+async function postJSON(payload) {
+  await fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
+  });
+}
 
-async function setState(newQ) {
-  if (!GAS_URL) { alert('GAS_URLが設定されていません'); return; }
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ type: 'setState', currentQuestion: newQ })
+// -------- フェーズ遷移ロジック --------
+function getNextTransition() {
+  const q = mcState.currentQuestion;
+  const p = mcState.currentPhase;
+
+  if (q === -1) return { q: 0, phase: '1st', label: `${QUESTION_LABELS[0]}を開始` };
+  if (q === 99) return null;
+
+  if (p === 'waiting') return { q: q, phase: '1st', label: `${QUESTION_LABELS[q]}を開始` };
+  if (p === '1st') return { q: q, phase: '1st_result', label: '1st結果発表' };
+  if (p === '1st_result') return { q: q, phase: '2nd', label: '2ndラウンド開始' };
+  if (p === '2nd') return { q: q, phase: '2nd_result', label: '2nd結果発表' };
+  if (p === '2nd_result') {
+    if (q >= MAX_Q) return { q: 99, phase: 'final', label: '結果発表へ' };
+    return { q: q + 1, phase: 'waiting', label: `${QUESTION_LABELS[q + 1]}へ` };
+  }
+  return null;
+}
+function getPrevTransition() {
+  const q = mcState.currentQuestion;
+  const p = mcState.currentPhase;
+
+  if (q === -1) return null;
+  if (q === 99) return { q: MAX_Q, phase: '2nd_result', label: `${QUESTION_LABELS[MAX_Q]}の結果に戻す` };
+
+  if (p === '2nd_result') return { q: q, phase: '2nd', label: '2ndラウンドに戻す' };
+  if (p === '2nd') return { q: q, phase: '1st_result', label: '1st結果に戻す' };
+  if (p === '1st_result') return { q: q, phase: '1st', label: '1stラウンドに戻す' };
+  if (p === '1st' || p === 'waiting') {
+    if (q === 0) return { q: -1, phase: 'waiting', label: '待機画面に戻す' };
+    return { q: q - 1, phase: '2nd_result', label: `${QUESTION_LABELS[q - 1]}の結果に戻す` };
+  }
+  return null;
+}
+
+// -------- 操作 --------
+async function advance() {
+  const next = getNextTransition();
+  if (!next) return;
+  await postJSON({ type: 'setState', currentQuestion: next.q, currentPhase: next.phase });
+  mcState.currentQuestion = next.q;
+  mcState.currentPhase = next.phase;
+  updateDisplay();
+  log('進行: ' + next.label);
+}
+async function back() {
+  const prev = getPrevTransition();
+  if (!prev) return;
+  if (!confirm(prev.label + ' で戻します。よろしいですか?')) return;
+  await postJSON({ type: 'setState', currentQuestion: prev.q, currentPhase: prev.phase });
+  mcState.currentQuestion = prev.q;
+  mcState.currentPhase = prev.phase;
+  updateDisplay();
+  log('戻る: ' + prev.label);
+}
+async function doReset() {
+  if (!confirm('本当に全てリセットしますか?\n\n・参加者データが全て消えます\n・回答データが全て消えます\n・待機画面に戻ります')) return;
+  await postJSON({ type: 'reset' });
+  log('全リセット実行');
+  setTimeout(poll, 500);
+}
+async function submitBonus() {
+  const val = Math.max(0, Number(document.getElementById('bonus-input').value) || 0);
+  await postJSON({ type: 'setFinalBonus', bonus: val });
+  mcState.finalBonus = val;
+  log('最終ボーナス: ' + val + '点');
+  updateBonusStatus();
+  updateScoresTable();
+}
+
+// -------- 表示更新 --------
+function updateDisplay() {
+  updateStatus();
+  updateAdvanceButton();
+  updateCurrentDetail();
+  updateScoresTable();
+  updateBonusStatus();
+}
+
+function updateStatus() {
+  const qEl = document.getElementById('status-q');
+  const phaseEl = document.getElementById('status-phase');
+  const progressEl = document.getElementById('status-progress');
+
+  const q = mcState.currentQuestion;
+  if (q === -1) qEl.textContent = '⏸';
+  else if (q === 99) qEl.textContent = '🏁';
+  else qEl.textContent = 'Q' + q;
+
+  const qLabel = (q >= 0 && q <= MAX_Q) ? QUESTION_LABELS[q] + ' / ' : '';
+  phaseEl.textContent = qLabel + (PHASE_LABELS[mcState.currentPhase] || mcState.currentPhase);
+
+  // 解答進捗
+  if (q >= 0 && q <= MAX_Q && (mcState.currentPhase === '1st' || mcState.currentPhase === '2nd')) {
+    const round = mcState.currentPhase === '1st' ? 1 : 2;
+    let target = currentScores.length;
+    let answered = 0;
+    currentScores.forEach(s => {
+      const qData = s.questions[q] || {};
+      if (round === 1) {
+        if (qData.first) answered++;
+      } else {
+        // 2ndラウンドは1st不正解者のみが対象
+        if (qData.first && !qData.first.correct) {
+          if (qData.second) answered++;
+        } else {
+          // 1st正解者(2ndプレイなし)は自動的にカウント外
+          target--;
+        }
+      }
     });
-    currentQ = newQ;
-    updateDisplay();
-    log('状態を ' + newQ + ' に変更');
-  } catch (e) {
-    log('送信失敗: ' + e.message, true);
+    progressEl.textContent = target > 0 ? `解答済み: ${answered} / ${target}人` : '対象者なし';
+  } else {
+    progressEl.textContent = currentScores.length > 0 ? `参加者: ${currentScores.length}人` : '';
   }
 }
 
-// -------------------- 操作 --------------------
-function advance() {
-  if (currentQ === null) return;
-  let next;
-  if (currentQ === -1) next = 0;
-  else if (currentQ >= 0 && currentQ < MAX_Q) next = currentQ + 1;
-  else if (currentQ === MAX_Q) next = 99;
-  else return;
-  setState(next);
+function updateAdvanceButton() {
+  const btn = document.getElementById('advance-btn');
+  const next = getNextTransition();
+  const back = document.getElementById('back-btn');
+  const prev = getPrevTransition();
+
+  if (next) {
+    btn.textContent = '▶ ' + next.label;
+    btn.disabled = false;
+  } else {
+    btn.textContent = '✓ 完了';
+    btn.disabled = true;
+  }
+  back.disabled = !prev;
 }
 
-function back() {
-  if (currentQ === null) return;
-  if (currentQ === 99) setState(MAX_Q);
-  else if (currentQ > 0) setState(currentQ - 1);
-  else if (currentQ === 0) {
-    if (confirm('待機画面まで戻しますか？')) setState(-1);
+function updateCurrentDetail() {
+  const section = document.getElementById('current-detail-section');
+  const titleEl = document.getElementById('current-detail-title');
+  const tableEl = document.getElementById('current-detail-table');
+
+  const q = mcState.currentQuestion;
+  if (q < 0 || q > MAX_Q) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  titleEl.textContent = QUESTION_LABELS[q] + ' の状況';
+
+  let html = `<tr>
+    <th style="text-align:left;">名前</th>
+    <th>1st解答</th>
+    <th></th>
+    <th>2nd解答</th>
+    <th></th>
+    <th>パネル</th>
+    <th>点数</th>
+  </tr>`;
+
+  if (currentScores.length === 0) {
+    html += `<tr><td colspan="7" class="empty-msg">参加者を待っています...</td></tr>`;
+  } else {
+    currentScores.forEach(s => {
+      const qData = s.questions[q] || {};
+      const first = qData.first, second = qData.second;
+
+      const a1 = first ? escapeHtml(first.answer || '(空)') : '<span class="mark-none">-</span>';
+      const m1 = first ? (first.correct ? '<span class="mark-o">◯</span>' : '<span class="mark-x">✗</span>') : '<span class="mark-none">-</span>';
+      const a2 = second ? escapeHtml(second.answer || '(空)') : '<span class="mark-none">-</span>';
+      const m2 = second ? (second.correct ? '<span class="mark-o">◯</span>' : '<span class="mark-x">✗</span>') : '<span class="mark-none">-</span>';
+
+      const allP = [].concat(first ? first.panels : []).concat(second ? second.panels : []);
+      let panelStr;
+      if (allP.length === 0) {
+        panelStr = '<span class="mark-none">0枚</span>';
+      } else {
+        const letters = allP.map(panelToLetter).sort().join('');
+        panelStr = `${allP.length}枚<br><span class="panels-detail">${letters}</span>`;
+      }
+
+      html += `<tr>
+        <td class="name-cell">${escapeHtml(s.name)}</td>
+        <td>${a1}</td>
+        <td>${m1}</td>
+        <td>${a2}</td>
+        <td>${m2}</td>
+        <td>${panelStr}</td>
+        <td class="score-cell">${qData.score || 0}</td>
+      </tr>`;
+    });
+  }
+  tableEl.innerHTML = html;
+}
+
+function updateScoresTable() {
+  const tableEl = document.getElementById('scores-table');
+
+  // ヘッダー
+  let head = '<th style="text-align:left;">名前</th>';
+  for (let q = 0; q <= MAX_Q; q++) head += `<th>${QUESTION_LABELS[q]}</th>`;
+  if (mcState.finalBonus > 0) head += '<th>ボーナス</th>';
+  head += '<th>合計</th>';
+
+  let html = `<tr>${head}</tr>`;
+
+  if (currentScores.length === 0) {
+    const cols = 2 + (MAX_Q + 1) + (mcState.finalBonus > 0 ? 1 : 0);
+    html += `<tr><td colspan="${cols}" class="empty-msg">参加者を待っています...</td></tr>`;
+  } else {
+    // 合計降順ソート
+    const sorted = currentScores.slice().sort((a, b) => b.total - a.total);
+    sorted.forEach(s => {
+      let cells = `<td class="name-cell">${escapeHtml(s.name)}</td>`;
+      for (let q = 0; q <= MAX_Q; q++) {
+        const qData = s.questions[q] || {};
+        cells += `<td>${qData.score || 0}</td>`;
+      }
+      if (mcState.finalBonus > 0) {
+        const bonus = s.finalBonus || 0;
+        cells += `<td style="color:${bonus > 0 ? 'var(--correct)' : 'var(--mark-none)'};font-weight:${bonus > 0 ? '800' : '400'}">${bonus > 0 ? '+' + bonus : '-'}</td>`;
+      }
+      cells += `<td class="score-cell">${s.total}</td>`;
+      html += `<tr>${cells}</tr>`;
+    });
+  }
+  tableEl.innerHTML = html;
+}
+
+function updateBonusStatus() {
+  const el = document.getElementById('bonus-status');
+  const input = document.getElementById('bonus-input');
+
+  if (document.activeElement !== input) {
+    input.value = mcState.finalBonus || 0;
+  }
+
+  if (mcState.finalBonus > 0) {
+    const eligibles = currentScores.filter(s => s.playedFinal);
+    if (eligibles.length > 0) {
+      const minPanels = Math.min.apply(null, eligibles.map(s => s.finalPanels));
+      const winners = eligibles.filter(s => s.finalPanels === minPanels);
+      const names = winners.map(w => escapeHtml(w.name)).join('、');
+      el.className = 'bonus-status active';
+      el.innerHTML = `🏆 ${names} (${minPanels}枚) に +${mcState.finalBonus}点`;
+    } else {
+      el.className = 'bonus-status';
+      el.textContent = 'まだ最終問題を解答した人がいません';
+    }
+  } else {
+    el.className = 'bonus-status';
+    el.textContent = 'ボーナス未設定';
   }
 }
 
-function jumpToEnd() {
-  if (confirm('ゲームを終了して結果発表画面に飛ばしますか？\n（未回答の問題は不正解扱いになります）')) {
-    setState(99);
-  }
-}
-
-function reset() {
-  if (confirm('本当にリセットしますか？\n全プレイヤーが待機画面に戻ります。')) {
-    setState(-1);
-  }
-}
-
-// -------------------- ポーリング --------------------
-async function poll() {
+function setConn(ok, msg) {
   const dot = document.getElementById('conn-dot');
   const text = document.getElementById('conn-text');
-  try {
-    const data = await jsonpFetch();
-    if (data.error) throw new Error(data.error);
-    if (data.currentQuestion !== currentQ) {
-      currentQ = data.currentQuestion;
-      updateDisplay();
-    }
+  if (ok) {
     dot.classList.remove('error');
     text.textContent = 'GAS接続OK';
-  } catch (e) {
+  } else {
     dot.classList.add('error');
-    text.textContent = '接続エラー: ' + e.message;
+    text.textContent = '接続エラー' + (msg ? ': ' + msg : '');
   }
 }
 
+// -------- ポーリング --------
+async function poll() {
+  try {
+    const data = await jsonpFetch(GAS_URL + '?action=mc');
+    if (data.error) throw new Error(data.error);
+    mcState = data.state;
+    currentScores = data.scores || [];
+    updateDisplay();
+    setConn(true);
+  } catch (e) {
+    setConn(false, e.message);
+  }
+}
+
+// -------- 起動 --------
+document.getElementById('bonus-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitBonus();
+});
 poll();
-setInterval(poll, 3000);
+setInterval(poll, POLL_INTERVAL);
 </script>
 </body>
 </html>
