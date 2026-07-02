@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MC コントロールパネル</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0f0f1a; color: #e8e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  padding: 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+.container { max-width: 500px; margin: 0 auto; }
+h1 {
+  font-size: 22px; margin-bottom: 20px; text-align: center;
+  color: #ff6b35; letter-spacing: 0.05em;
+}
+.status-box {
+  background: linear-gradient(135deg, #1a1a2e, #252545);
+  border-radius: 16px;
+  padding: 32px 24px; margin-bottom: 24px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.status-label {
+  font-size: 12px; color: #8888a8;
+  letter-spacing: 0.15em; text-transform: uppercase;
+}
+.status-value {
+  font-size: 56px; font-weight: 900;
+  margin: 8px 0 4px; color: #ff6b35;
+  line-height: 1;
+}
+.status-desc { font-size: 17px; color: #e8e8f0; font-weight: 600; }
+.next-hint {
+  font-size: 13px; color: #8888a8;
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid #33334f;
+}
+.controls { display: grid; gap: 12px; margin-bottom: 20px; }
+.btn {
+  padding: 20px; border: none; border-radius: 10px;
+  font-size: 17px; font-weight: 700;
+  cursor: pointer; touch-action: manipulation;
+  transition: transform 0.15s, opacity 0.15s;
+  color: inherit; font-family: inherit;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; pointer-events: none; }
+.btn-primary {
+  background: #ff6b35; color: #fff;
+  font-size: 20px; padding: 22px;
+}
+.btn-secondary { background: #252545; color: #e8e8f0; }
+.btn-danger { background: #3a1a2a; color: #ff8899; border: 1px solid #ff4757; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.log-box {
+  background: #1a1a2e; border-radius: 10px;
+  padding: 12px 14px; margin-top: 8px;
+  font-size: 12px; color: #8888a8;
+  max-height: 180px; overflow-y: auto;
+  font-family: 'SF Mono', Menlo, monospace;
+  line-height: 1.6;
+}
+.log-box .ts { color: #555577; margin-right: 6px; }
+.connection-dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: #00c9a7;
+  margin-right: 6px; vertical-align: middle;
+  animation: pulse 2s ease-in-out infinite;
+}
+.connection-dot.error { background: #ff4757; animation: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.connection {
+  text-align: center; font-size: 12px;
+  color: #8888a8; margin-bottom: 20px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎮 MC コントロール</h1>
+
+  <div class="connection">
+    <span class="connection-dot" id="conn-dot"></span>
+    <span id="conn-text">接続中...</span>
+  </div>
+
+  <div class="status-box">
+    <div class="status-label">現在の状態</div>
+    <div class="status-value" id="current-q">?</div>
+    <div class="status-desc" id="current-desc">読み込み中...</div>
+    <div class="next-hint" id="next-hint"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="next-btn" onclick="advance()">▶ 次へ進む</button>
+    <div class="row">
+      <button class="btn btn-secondary" id="back-btn" onclick="back()">◀ 前へ戻す</button>
+      <button class="btn btn-secondary" onclick="jumpToEnd()">⏭ 結果発表へ</button>
+    </div>
+    <button class="btn btn-danger" onclick="reset()">🔄 待機画面に戻す（リセット）</button>
+  </div>
+
+  <div class="log-box" id="log"></div>
+</div>
+
+<script>
+// =============================================================
+//   ★ ここに GAS のデプロイURL を貼ってください ★
+// =============================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw90vq_cB9x0zgRSwvBL9jBihemOieY8dJVDRpQwFqX6V32gdF-4qQsw5PqxmNsKKGkgw/exec';
+
+const QUESTION_LABELS = ['例題', '第1問', '第2問', '第3問', '第4問', '第5問'];
+const MAX_Q = QUESTION_LABELS.length - 1; // 5
+
+let currentQ = null;
+
+// -------------------- 表示更新 --------------------
+function updateDisplay() {
+  const qEl = document.getElementById('current-q');
+  const descEl = document.getElementById('current-desc');
+  const nextEl = document.getElementById('next-hint');
+  const nextBtn = document.getElementById('next-btn');
+  const backBtn = document.getElementById('back-btn');
+
+  if (currentQ === null) {
+    qEl.textContent = '?';
+    descEl.textContent = '取得中';
+    nextEl.textContent = '';
+    return;
+  }
+
+  if (currentQ === -1) {
+    qEl.textContent = '⏸';
+    descEl.textContent = '待機中';
+    nextEl.textContent = '「次へ進む」で 例題 を開始';
+    nextBtn.textContent = '▶ 例題を開始';
+    backBtn.disabled = true;
+  } else if (currentQ === 99) {
+    qEl.textContent = '🏁';
+    descEl.textContent = 'ゲーム終了';
+    nextEl.textContent = '全プレイヤーに結果発表画面が表示中';
+    nextBtn.disabled = true;
+    backBtn.disabled = false;
+  } else if (currentQ >= 0 && currentQ <= MAX_Q) {
+    qEl.textContent = 'Q' + currentQ;
+    descEl.textContent = QUESTION_LABELS[currentQ];
+    if (currentQ < MAX_Q) {
+      nextEl.textContent = '「次へ進む」で ' + QUESTION_LABELS[currentQ + 1] + ' へ';
+      nextBtn.textContent = '▶ ' + QUESTION_LABELS[currentQ + 1] + ' へ進む';
+    } else {
+      nextEl.textContent = '「次へ進む」で 結果発表 へ';
+      nextBtn.textContent = '⏭ 結果発表へ';
+    }
+    nextBtn.disabled = false;
+    backBtn.disabled = false;
+  } else {
+    qEl.textContent = '?';
+    descEl.textContent = '不明な状態: ' + currentQ;
+  }
+}
+
+// -------------------- ログ --------------------
+function log(msg, isError) {
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString('ja-JP');
+  const color = isError ? '#ff4757' : '#8888a8';
+  el.innerHTML = `<div style="color:${color}"><span class="ts">${time}</span>${msg}</div>` + el.innerHTML;
+}
+
+// -------------------- 通信 --------------------
+function jsonpFetch() {
+  return new Promise((resolve, reject) => {
+    if (!GAS_URL) { reject(new Error('GAS_URL未設定')); return; }
+    const cb = 'cb_' + Math.random().toString(36).slice(2, 10);
+    const cleanup = () => { delete window[cb]; s.remove(); };
+    window[cb] = data => { resolve(data); cleanup(); };
+    const s = document.createElement('script');
+    s.onerror = () => { reject(new Error('通信失敗')); cleanup(); };
+    s.src = GAS_URL + '?callback=' + cb + '&t=' + Date.now();
+    document.body.appendChild(s);
+    setTimeout(() => { if (window[cb]) { reject(new Error('タイムアウト')); cleanup(); } }, 8000);
+  });
+}
+
+async function setState(newQ) {
+  if (!GAS_URL) { alert('GAS_URLが設定されていません'); return; }
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ type: 'setState', currentQuestion: newQ })
+    });
+    currentQ = newQ;
+    updateDisplay();
+    log('状態を ' + newQ + ' に変更');
+  } catch (e) {
+    log('送信失敗: ' + e.message, true);
+  }
+}
+
+// -------------------- 操作 --------------------
+function advance() {
+  if (currentQ === null) return;
+  let next;
+  if (currentQ === -1) next = 0;
+  else if (currentQ >= 0 && currentQ < MAX_Q) next = currentQ + 1;
+  else if (currentQ === MAX_Q) next = 99;
+  else return;
+  setState(next);
+}
+
+function back() {
+  if (currentQ === null) return;
+  if (currentQ === 99) setState(MAX_Q);
+  else if (currentQ > 0) setState(currentQ - 1);
+  else if (currentQ === 0) {
+    if (confirm('待機画面まで戻しますか？')) setState(-1);
+  }
+}
+
+function jumpToEnd() {
+  if (confirm('ゲームを終了して結果発表画面に飛ばしますか？\n（未回答の問題は不正解扱いになります）')) {
+    setState(99);
+  }
+}
+
+function reset() {
+  if (confirm('本当にリセットしますか？\n全プレイヤーが待機画面に戻ります。')) {
+    setState(-1);
+  }
+}
+
+// -------------------- ポーリング --------------------
+async function poll() {
+  const dot = document.getElementById('conn-dot');
+  const text = document.getElementById('conn-text');
+  try {
+    const data = await jsonpFetch();
+    if (data.error) throw new Error(data.error);
+    if (data.currentQuestion !== currentQ) {
+      currentQ = data.currentQuestion;
+      updateDisplay();
+    }
+    dot.classList.remove('error');
+    text.textContent = 'GAS接続OK';
+  } catch (e) {
+    dot.classList.add('error');
+    text.textContent = '接続エラー: ' + e.message;
+  }
+}
+
+poll();
+setInterval(poll, 3000);
+</script>
+</body>
+</html>

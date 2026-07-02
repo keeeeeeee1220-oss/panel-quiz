@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>パネルクイズ</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --panel-bg: #252545;
+  --accent: #ff6b35;
+  --accent-glow: rgba(255, 107, 53, 0.4);
+  --correct: #00c9a7;
+  --incorrect: #ff4757;
+  --text: #e8e8f0;
+  --text-dim: #8888a8;
+  --radius: 8px;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.screen { display: none; width: 100%; max-width: 600px; }
+.screen.active { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 14px 32px; border: none; border-radius: var(--radius);
+  font-size: 17px; font-weight: 700;
+  cursor: pointer; transition: transform 0.15s, opacity 0.15s;
+  touch-action: manipulation; color: inherit; font-family: inherit;
+}
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.35; pointer-events: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-outline { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+.btn-ghost { background: var(--surface); color: var(--text); }
+
+.label { font-size: 13px; color: var(--text-dim); letter-spacing: 0.04em; }
+.heading { font-size: 22px; font-weight: 800; text-align: center; }
+.subheading { font-size: 15px; color: var(--text-dim); text-align: center; }
+
+/* ===== タイトル画面 ===== */
+#title-screen .logo-img {
+  width: 100%;
+  max-width: 500px;
+  height: auto;
+  margin-top: 24px;
+  display: block;
+}
+.name-input {
+  width: 100%; max-width: 320px; padding: 14px 16px;
+  background: var(--surface); border: 2px solid #333355;
+  border-radius: var(--radius); color: var(--text);
+  font-size: 17px; text-align: center; outline: none;
+  transition: border-color 0.2s;
+}
+.name-input:focus { border-color: var(--accent); }
+.name-input::placeholder { color: var(--text-dim); }
+
+/* ===== 待機画面 ===== */
+.wait-icon {
+  font-size: 64px;
+  margin-top: 60px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.95); }
+}
+.wait-title { font-size: 22px; font-weight: 800; text-align: center; }
+.wait-desc { font-size: 15px; color: var(--text-dim); text-align: center; line-height: 1.6; }
+.wait-name {
+  background: var(--surface); border-radius: 20px;
+  padding: 8px 20px; font-size: 14px;
+  margin-top: 20px;
+}
+.wait-name .dot {
+  display: inline-block; width: 8px; height: 8px;
+  background: var(--correct); border-radius: 50%;
+  margin-right: 8px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ===== ローディング ===== */
+.spinner {
+  width: 48px; height: 48px;
+  border: 4px solid var(--surface);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-top: 80px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== クイズ画面 ===== */
+.quiz-header {
+  width: 100%; display: flex;
+  justify-content: space-between; align-items: center;
+  padding: 4px 0;
+}
+.quiz-header .q-label { font-size: 18px; font-weight: 800; }
+.quiz-header .turn-label {
+  font-size: 13px; padding: 4px 12px;
+  background: var(--surface); border-radius: 20px;
+  color: var(--text-dim);
+}
+
+.instruction {
+  font-size: 15px; text-align: center;
+  color: var(--text-dim); line-height: 1.6;
+}
+
+/* パネル盤面 — 真四角、角丸なし */
+.quiz-board {
+  position: relative; width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden; background: var(--panel-bg);
+}
+.quiz-board .question-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.panel-grid {
+  position: absolute; inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+.panel-cell {
+  position: relative; cursor: pointer;
+  background-color: var(--panel-bg);
+  background-repeat: no-repeat;
+  background-size: 400% 400%;
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.panel-cell .panel-number {
+  position: absolute; top: 4px; left: 4px;
+  font-size: 11px; font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  background: rgba(0,0,0,0.3);
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; pointer-events: none; z-index: 2;
+}
+.panel-cell.selectable:hover { filter: brightness(1.2); }
+.panel-cell.selected {
+  box-shadow: inset 0 0 0 3px var(--accent), 0 0 16px var(--accent-glow);
+  filter: brightness(1.15); z-index: 1;
+}
+.panel-cell.selected::after {
+  content: '✓'; position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 36px; font-weight: 900; color: var(--accent);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none;
+}
+.panel-cell.opened {
+  opacity: 0; pointer-events: none;
+  transform: scale(0.85);
+}
+.panel-cell.no-image {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 900; color: rgba(255,255,255,0.15);
+}
+.panel-cell.no-image .panel-number { display: none; }
+
+.answer-area {
+  width: 100%; display: flex; flex-direction: column;
+  align-items: center; gap: 12px;
+}
+.answer-input {
+  width: 100%; padding: 14px 16px;
+  background: var(--surface); border: 2px solid #333355;
+  border-radius: var(--radius); color: var(--text);
+  font-size: 18px; text-align: center; outline: none;
+  transition: border-color 0.2s;
+}
+.answer-input:focus { border-color: var(--accent); }
+.answer-input::placeholder { color: var(--text-dim); }
+
+.panel-count-info { font-size: 14px; color: var(--text-dim); text-align: center; }
+
+/* ===== 結果画面 ===== */
+.result-banner {
+  font-size: 28px; font-weight: 900;
+  padding: 16px 0; text-align: center;
+}
+.result-banner.correct { color: var(--correct); }
+.result-banner.incorrect { color: var(--incorrect); }
+.correct-answer-box {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; width: 100%; text-align: center;
+}
+.correct-answer-box .ca-label { font-size: 13px; color: var(--text-dim); }
+.correct-answer-box .ca-text { font-size: 22px; font-weight: 800; margin-top: 4px; }
+.explanation { font-size: 14px; color: var(--text-dim); text-align: center; line-height: 1.6; }
+
+.mc-wait-banner {
+  width: 100%;
+  background: linear-gradient(135deg, #1a1a2e, #252545);
+  border-radius: var(--radius);
+  padding: 20px; text-align: center;
+  border: 1px dashed #444466;
+}
+.mc-wait-banner .wait-emoji {
+  font-size: 32px; display: block;
+  animation: pulse 2s ease-in-out infinite;
+  margin-bottom: 8px;
+}
+.mc-wait-banner .wait-msg {
+  font-size: 15px; color: var(--text);
+  font-weight: 600;
+}
+.mc-wait-banner .wait-sub {
+  font-size: 12px; color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ===== サマリー ===== */
+.summary-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.summary-table th, .summary-table td {
+  padding: 10px 8px; text-align: center;
+  border-bottom: 1px solid #222244;
+}
+.summary-table th { color: var(--text-dim); font-weight: 600; font-size: 12px; }
+.summary-table .mark-o { color: var(--correct); font-weight: 800; }
+.summary-table .mark-x { color: var(--incorrect); font-weight: 800; }
+
+/* ===== 特別演出（NO PANEL CLEAR!） ===== */
+.celebration-overlay {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #ff6b35, #ffad56, #ff4757, #00c9a7, #4ec5f1, #a066ff);
+  background-size: 400% 400%;
+  animation: rainbowShift 4s ease infinite;
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; padding: 40px;
+}
+@keyframes rainbowShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.celeb-title {
+  font-size: 56px; font-weight: 900; color: #fff;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  text-align: center; line-height: 1.1;
+  animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  letter-spacing: 0.05em;
+}
+.celeb-sub {
+  font-size: 20px; color: #fff;
+  margin-top: 20px; font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  animation: bounceIn 0.6s 0.2s backwards cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.celeb-trophy {
+  font-size: 80px;
+  animation: bounceIn 0.6s 0.4s backwards cubic-bezier(0.34, 1.56, 0.64, 1),
+             floatY 3s 1s ease-in-out infinite;
+  margin-bottom: 20px;
+}
+@keyframes bounceIn {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
+}
+.confetti {
+  position: fixed;
+  top: -20px; width: 10px; height: 16px;
+  z-index: 101;
+  animation: confettiFall linear forwards;
+  pointer-events: none;
+}
+@keyframes confettiFall {
+  to { transform: translateY(110vh) rotate(720deg); }
+}
+.celeb-close {
+  margin-top: 40px;
+  padding: 14px 40px;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255,255,255,0.5);
+  border-radius: 30px; color: #fff;
+  font-size: 16px; font-weight: 700;
+  cursor: pointer;
+  animation: bounceIn 0.6s 0.6s backwards cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+</style>
+</head>
+<body>
+
+<!-- ===== タイトル ===== -->
+<div id="title-screen" class="screen active">
+  <img class="logo-img" src="images/logo.png" alt="パネルクイズ">
+  <p class="subheading">隠された画像を推理せよ！</p>
+  <div style="height: 24px;"></div>
+  <span class="label">プレイヤー名</span>
+  <input class="name-input" id="player-name" type="text" placeholder="名前を入力" maxlength="20">
+  <div style="height: 8px;"></div>
+  <button class="btn btn-primary" onclick="startGame()">参加する</button>
+</div>
+
+<!-- ===== 待機画面（MC制御待ち） ===== -->
+<div id="waiting-screen" class="screen">
+  <div class="wait-icon">⏳</div>
+  <p class="wait-title" id="wait-title">MCの合図を待っています</p>
+  <p class="wait-desc" id="wait-desc">まもなくゲームが始まります</p>
+  <div class="wait-name">
+    <span class="dot"></span><span id="wait-player-name"></span>
+  </div>
+</div>
+
+<!-- ===== ローディング ===== -->
+<div id="loading-screen" class="screen">
+  <div class="spinner"></div>
+  <p class="subheading">読み込み中...</p>
+</div>
+
+<!-- ===== クイズ ===== -->
+<div id="quiz-screen" class="screen">
+  <div class="quiz-header">
+    <span class="q-label" id="q-label"></span>
+    <span class="turn-label" id="turn-label"></span>
+  </div>
+  <p class="instruction" id="instruction"></p>
+  <div class="quiz-board" id="quiz-board">
+    <img class="question-img" id="question-img" src="" alt="">
+    <div class="panel-grid" id="panel-grid"></div>
+  </div>
+  <p class="panel-count-info" id="panel-count-info"></p>
+  <div class="answer-area" id="answer-area" style="display:none;">
+    <input class="answer-input" id="answer-input" type="text" placeholder="答えを入力">
+    <button class="btn btn-primary" onclick="submitAnswer()" style="width:100%;">回答する</button>
+  </div>
+  <button class="btn btn-primary" id="confirm-btn" onclick="confirmPanels()" disabled style="width:100%;">パネルを開ける</button>
+</div>
+
+<!-- ===== 結果 ===== -->
+<div id="result-screen" class="screen">
+  <div class="quiz-board">
+    <img class="question-img" id="result-img" src="" alt="">
+  </div>
+  <div class="result-banner" id="result-banner"></div>
+  <div class="correct-answer-box">
+    <div class="ca-label">正解</div>
+    <div class="ca-text" id="ca-text"></div>
+  </div>
+  <p class="explanation" id="explanation"></p>
+  <p class="panel-count-info" id="result-panels-info"></p>
+  <div class="mc-wait-banner">
+    <span class="wait-emoji">⏳</span>
+    <div class="wait-msg">MCの合図を待っています</div>
+    <div class="wait-sub">次の問題に進むまでお待ちください</div>
+  </div>
+</div>
+
+<!-- ===== サマリー ===== -->
+<div id="summary-screen" class="screen">
+  <div class="heading">結果発表</div>
+  <table class="summary-table" id="summary-table"></table>
+</div>
+
+<script src="questions.js?v=1"></script>
+<script>
+// =============================================================
+//   ★ GAS のデプロイURL をここに貼ってください ★
+// =============================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw90vq_cB9x0zgRSwvBL9jBihemOieY8dJVDRpQwFqX6V32gdF-4qQsw5PqxmNsKKGkgw/exec';
+const POLL_INTERVAL = 3000; // ミリ秒
+
+// =============================================================
+//   ゲーム状態
+// =============================================================
+const state = {
+  playerName: '',
+  playerQ: -1,           // プレイヤーが今プレイ中の問題番号（-1=未開始）
+  phase: 'idle',         // 'idle' | 'waiting' | 'select' | 'answer' | 'result' | 'summary'
+  serverQ: null,         // 最後に確認したサーバー状態
+  selectedPanels: new Set(),
+  openedPanels: new Set(),
+  turn: 1,
+  turn1Panels: [],
+  turn1Answer: '',
+  turn1Correct: null,
+  results: []
+};
+
+// =============================================================
+//   画面切り替え
+// =============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// =============================================================
+//   プレイヤー参加
+// =============================================================
+function startGame() {
+  const name = document.getElementById('player-name').value.trim();
+  if (!name) {
+    const input = document.getElementById('player-name');
+    input.focus();
+    input.style.borderColor = 'var(--incorrect)';
+    return;
+  }
+  state.playerName = name;
+  state.phase = 'waiting';
+  state.results = [];
+  document.getElementById('wait-player-name').textContent = name;
+
+  // サーバー状態を即確認
+  if (state.serverQ !== null && state.serverQ >= 0 && state.serverQ <= 5) {
+    loadQuestion(state.serverQ);
+  } else if (state.serverQ === 99) {
+    showSummary();
+  } else {
+    showScreen('waiting-screen');
+  }
+}
+
+// =============================================================
+//   MC状態のポーリング
+// =============================================================
+async function pollServerState() {
+  if (!GAS_URL) return;
+  try {
+    const data = await jsonpFetch(GAS_URL);
+    if (data.error) return;
+    handleServerStateChange(Number(data.currentQuestion));
+  } catch (e) {
+    // 通信エラーは無視して次のポーリングを待つ
+  }
+}
+
+function jsonpFetch(url) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Math.random().toString(36).slice(2, 10);
+    const cleanup = () => { delete window[cb]; s.remove(); };
+    window[cb] = data => { resolve(data); cleanup(); };
+    const s = document.createElement('script');
+    s.onerror = () => { reject(new Error('JSONP failed')); cleanup(); };
+    s.src = url + '?callback=' + cb + '&t=' + Date.now();
+    document.body.appendChild(s);
+    setTimeout(() => { if (window[cb]) { reject(new Error('timeout')); cleanup(); } }, 8000);
+  });
+}
+
+// =============================================================
+//   サーバー状態変化のハンドリング
+// =============================================================
+function handleServerStateChange(newServerQ) {
+  const prevServerQ = state.serverQ;
+  state.serverQ = newServerQ;
+
+  // 初回取得時は差分無し扱い
+  if (prevServerQ === null) return;
+  if (newServerQ === prevServerQ) return;
+
+  // idle（まだ名前入力してない）は何もしない
+  if (state.phase === 'idle') return;
+
+  // -1（リセット）→ 全プレイヤーが待機画面に戻る
+  if (newServerQ === -1) {
+    state.phase = 'waiting';
+    state.playerQ = -1;
+    showScreen('waiting-screen');
+    return;
+  }
+
+  // 99（終了）→ サマリー表示
+  if (newServerQ === 99) {
+    // 未完了の問題があれば強制不正解として記録
+    forceFinishRemainingQuestions();
+    showSummary();
+    return;
+  }
+
+  // 0-5（問題進行中）
+  if (newServerQ >= 0 && newServerQ <= 5) {
+    // プレイヤーがまだプレイ中の問題があれば強制終了
+    if (state.playerQ >= 0 && state.playerQ < newServerQ && state.phase !== 'result') {
+      forceFinishCurrentQuestion();
+    }
+    // プレイヤーがまだこの問題に到達していない場合は読み込み
+    if (state.playerQ !== newServerQ) {
+      loadQuestion(newServerQ);
+    }
+    return;
+  }
+}
+
+// MCが強制進行 → プレイヤーの現在Qを不正解として記録
+function forceFinishCurrentQuestion() {
+  if (state.playerQ < 0 || state.playerQ > 5) return;
+  const q = window.QUESTIONS[state.playerQ];
+  if (!q) return;
+
+  const result = {
+    question: q.title,
+    isExample: !!q.isExample,
+    turn1Panels: state.turn1Panels,
+    turn1Answer: state.turn1Answer || '',
+    turn1Correct: state.turn1Correct,
+    turn2Panels: state.turn === 2 ? [...state.openedPanels].filter(p => !state.turn1Panels.includes(p)) : [],
+    turn2Answer: '',
+    turn2Correct: state.turn === 2 ? false : null,
+    totalPanels: state.openedPanels.size,
+    finalCorrect: false,
+    forced: true
+  };
+  state.results.push(result);
+  sendResult(result);
+}
+
+// MCが終了 → まだプレイしていない問題を強制不正解として記録
+function forceFinishRemainingQuestions() {
+  const answeredTitles = new Set(state.results.map(r => r.question));
+  for (let i = 0; i <= 5; i++) {
+    const q = window.QUESTIONS[i];
+    if (!q || answeredTitles.has(q.title)) continue;
+
+    // 現在プレイ中なら現状を反映
+    if (state.playerQ === i && state.phase !== 'result') {
+      forceFinishCurrentQuestion();
+      answeredTitles.add(q.title);
+      continue;
+    }
+
+    // まだ触ってない → 完全に不正解
+    const result = {
+      question: q.title,
+      isExample: !!q.isExample,
+      turn1Panels: [], turn1Answer: '', turn1Correct: null,
+      turn2Panels: [], turn2Answer: '', turn2Correct: null,
+      totalPanels: 0, finalCorrect: false, forced: true
+    };
+    state.results.push(result);
+    sendResult(result);
+  }
+}
+
+// =============================================================
+//   問題読み込み
+// =============================================================
+function loadQuestion(index) {
+  const q = window.QUESTIONS[index];
+  if (!q) return;
+
+  showScreen('loading-screen');
+
+  preloadImages([q.image, q.panel]).finally(() => {
+    state.playerQ = index;
+    state.turn = 1;
+    state.phase = 'select';
+    state.selectedPanels = new Set();
+    state.openedPanels = new Set();
+    state.turn1Panels = [];
+    state.turn1Answer = '';
+    state.turn1Correct = null;
+    renderQuiz();
+    showScreen('quiz-screen');
+  });
+}
+
+function preloadImages(urls) {
+  return Promise.all(urls.filter(Boolean).map(url => new Promise(resolve => {
+    const img = new Image();
+    img.onload = resolve;
+    img.onerror = resolve;
+    img.src = url;
+  })));
+}
+
+// =============================================================
+//   クイズ描画
+// =============================================================
+function renderQuiz() {
+  const q = window.QUESTIONS[state.playerQ];
+
+  document.getElementById('q-label').textContent = q.title;
+  const turnLabel = document.getElementById('turn-label');
+  turnLabel.textContent = state.turn === 1 ? '1st チャンス' : '2nd チャンス';
+  turnLabel.style.color = state.turn === 2 ? 'var(--accent)' : '';
+
+  document.getElementById('question-img').src = q.image;
+
+  // パネルグリッド
+  const grid = document.getElementById('panel-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'panel-cell';
+    cell.dataset.index = i;
+    const row = Math.floor(i / 4), col = i % 4;
+
+    if (q.panel) {
+      cell.style.backgroundImage = `url('${q.panel}')`;
+      cell.style.backgroundPosition = `${col * (100/3)}% ${row * (100/3)}%`;
+    } else {
+      cell.classList.add('no-image');
+      cell.textContent = i + 1;
+    }
+
+    const numLabel = document.createElement('span');
+    numLabel.className = 'panel-number';
+    numLabel.textContent = i + 1;
+    cell.appendChild(numLabel);
+
+    if (state.openedPanels.has(i)) {
+      cell.classList.add('opened');
+    } else if (state.phase === 'select') {
+      cell.classList.add('selectable');
+      if (state.selectedPanels.has(i)) cell.classList.add('selected');
+      cell.addEventListener('click', () => togglePanel(i));
+    }
+    grid.appendChild(cell);
+  }
+
+  // 指示テキスト
+  const inst = document.getElementById('instruction');
+  if (state.phase === 'select') {
+    inst.textContent = state.turn === 1
+      ? '開けるパネルをタップして選んでください'
+      : '追加で開けるパネルを選んでください';
+  } else {
+    inst.textContent = '画像を見て答えてください';
+  }
+
+  // パネル枚数情報
+  const countInfo = document.getElementById('panel-count-info');
+  const selectedCount = state.selectedPanels.size;
+  const openedCount = state.openedPanels.size;
+  if (state.phase === 'select') {
+    countInfo.textContent = state.turn === 1
+      ? `選択中: ${selectedCount}枚`
+      : `開放済み: ${openedCount}枚 ＋ 追加: ${selectedCount}枚`;
+  } else {
+    countInfo.textContent = `開放パネル: ${openedCount}枚 / 16枚`;
+  }
+
+  // ボタン切り替え
+  const confirmBtn = document.getElementById('confirm-btn');
+  const answerArea = document.getElementById('answer-area');
+  if (state.phase === 'select') {
+    confirmBtn.style.display = '';
+    answerArea.style.display = 'none';
+    // 1ターン目は0枚でも解答可能（ボタン押下時に確認ポップアップ）
+    // 2ターン目は1枚以上の追加が必要
+    if (selectedCount === 0) {
+      if (state.turn === 1) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'パネルを開けずに解答へ';
+      } else {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '追加パネルを選んでください';
+      }
+    } else {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'パネルを開ける';
+    }
+  } else {
+    confirmBtn.style.display = 'none';
+    answerArea.style.display = '';
+    setTimeout(() => document.getElementById('answer-input').focus(), 300);
+  }
+  document.getElementById('answer-input').value = '';
+}
+
+// =============================================================
+//   パネル操作
+// =============================================================
+function togglePanel(index) {
+  if (state.phase !== 'select' || state.openedPanels.has(index)) return;
+  if (state.selectedPanels.has(index)) state.selectedPanels.delete(index);
+  else state.selectedPanels.add(index);
+  renderQuiz();
+}
+
+function confirmPanels() {
+  // 2ターン目は追加パネル必須（ルール）
+  if (state.turn === 2 && state.selectedPanels.size === 0) return;
+
+  // 1ターン目で0枚選択なら確認ポップアップ
+  if (state.turn === 1 && state.selectedPanels.size === 0) {
+    if (!confirm('パネルを1枚も開けずに解答します。\nよろしいですか？')) return;
+  }
+
+  // 選択パネルを開放済みへ
+  for (const idx of state.selectedPanels) state.openedPanels.add(idx);
+
+  if (state.turn === 1) {
+    state.turn1Panels = [...state.selectedPanels];
+  }
+  state.selectedPanels = new Set();
+  state.phase = 'answer';
+  renderQuiz();
+}
+
+// =============================================================
+//   解答処理
+// =============================================================
+function submitAnswer() {
+  const inputEl = document.getElementById('answer-input');
+  const input = inputEl.value.trim();
+  if (!input) { inputEl.focus(); return; }
+
+  const q = window.QUESTIONS[state.playerQ];
+  const isCorrect = checkAnswer(input, q.answers);
+
+  if (state.turn === 1) {
+    state.turn1Answer = input;
+    state.turn1Correct = isCorrect;
+    if (!isCorrect) {
+      // 2ターン目へ
+      state.turn = 2;
+      state.phase = 'select';
+      state.selectedPanels = new Set();
+      renderQuiz();
+      const inst = document.getElementById('instruction');
+      inst.innerHTML = '<span style="color:var(--incorrect);font-weight:700;">不正解…</span> もう1回チャンス！追加でパネルを開けてください';
+      return;
+    }
+  }
+
+  // 結果を記録
+  const turn2Panels = state.turn === 2
+    ? [...state.openedPanels].filter(p => !state.turn1Panels.includes(p))
+    : [];
+  const result = {
+    question: q.title,
+    isExample: !!q.isExample,
+    turn1Panels: state.turn1Panels,
+    turn1Answer: state.turn1Answer,
+    turn1Correct: state.turn1Correct,
+    turn2Panels: turn2Panels,
+    turn2Answer: state.turn === 2 ? input : '',
+    turn2Correct: state.turn === 2 ? isCorrect : null,
+    totalPanels: state.openedPanels.size,
+    finalCorrect: isCorrect,
+    forced: false
+  };
+  state.results.push(result);
+  sendResult(result);
+  showResult(q, result);
+}
+
+// Enterキーで送信
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (!document.getElementById('quiz-screen').classList.contains('active')) return;
+  const answerArea = document.getElementById('answer-area');
+  if (answerArea.style.display !== 'none') submitAnswer();
+});
+
+// =============================================================
+//   表記揺れ吸収
+// =============================================================
+function normalizeText(text) {
+  let s = String(text).trim().toLowerCase();
+  s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  s = s.replace(/[\u30A1-\u30F6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+  s = s.replace(/[\s　・\-_=＝]/g, '');
+  return s;
+}
+function checkAnswer(input, answers) {
+  const norm = normalizeText(input);
+  return answers.some(a => normalizeText(a) === norm);
+}
+
+// =============================================================
+//   結果表示
+// =============================================================
+function showResult(q, result) {
+  state.phase = 'result';
+  document.getElementById('result-img').src = q.image;
+
+  const banner = document.getElementById('result-banner');
+  if (result.finalCorrect) {
+    banner.textContent = '🎉 正解！';
+    banner.className = 'result-banner correct';
+  } else {
+    banner.textContent = '❌ 不正解…';
+    banner.className = 'result-banner incorrect';
+  }
+
+  document.getElementById('ca-text').textContent = q.answers[0];
+  document.getElementById('explanation').textContent = q.explanation || '';
+  document.getElementById('result-panels-info').textContent =
+    `開けたパネル: ${result.totalPanels}枚 / 16枚`;
+
+  showScreen('result-screen');
+
+  // 特別演出：0枚で正解、かつ noPanelBonus フラグあり
+  if (q.noPanelBonus && result.finalCorrect && result.totalPanels === 0) {
+    setTimeout(launchCelebration, 400);
+  }
+}
+
+// =============================================================
+//   NO PANEL CLEAR! 特別演出
+// =============================================================
+function launchCelebration() {
+  const overlay = document.createElement('div');
+  overlay.className = 'celebration-overlay';
+  overlay.innerHTML = `
+    <div class="celeb-trophy">🏆</div>
+    <div class="celeb-title">NO PANEL<br>CLEAR!</div>
+    <div class="celeb-sub">パネル0枚でクリア！</div>
+    <button class="celeb-close" onclick="this.parentElement.remove()">閉じる</button>
+  `;
+  document.body.appendChild(overlay);
+
+  const colors = ['#ff6b35', '#ffad56', '#ff4757', '#00c9a7', '#4ec5f1', '#ffe066', '#fff', '#a066ff'];
+  for (let i = 0; i < 100; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.backgroundColor = colors[i % colors.length];
+    p.style.animationDelay = (Math.random() * 0.8) + 's';
+    p.style.animationDuration = (2 + Math.random() * 2.5) + 's';
+    p.style.transform = `rotate(${Math.random() * 360}deg)`;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 6000);
+  }
+}
+
+// =============================================================
+//   GASへ解答送信（問題ごと、no-cors投げっぱなし）
+// =============================================================
+function sendResult(result) {
+  if (!GAS_URL) return;
+  const payload = {
+    type: 'answer',
+    playerName: state.playerName,
+    timestamp: new Date().toISOString(),
+    result: {
+      question: result.question,
+      turn1Panels: result.turn1Panels.map(p => p + 1).sort((a,b) => a-b).join(','),
+      turn1Answer: result.turn1Answer,
+      turn1Correct: result.turn1Correct,
+      turn2Panels: result.turn2Panels.map(p => p + 1).sort((a,b) => a-b).join(','),
+      turn2Answer: result.turn2Answer,
+      turn2Correct: result.turn2Correct,
+      totalPanels: result.totalPanels,
+      finalCorrect: result.finalCorrect,
+      forced: result.forced
+    }
+  };
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+}
+
+// =============================================================
+//   サマリー
+// =============================================================
+function showSummary() {
+  state.phase = 'summary';
+  const realResults = state.results.filter(r => !r.isExample);
+
+  let html = `<tr><th></th><th>正誤</th><th>パネル</th><th>解答</th></tr>`;
+  realResults.forEach(r => {
+    const mark = r.finalCorrect
+      ? '<span class="mark-o">◯</span>'
+      : '<span class="mark-x">✗</span>';
+    const answer = r.turn2Answer || r.turn1Answer || '（未回答）';
+    html += `<tr>
+      <td style="font-weight:700;">${escapeHtml(r.question)}</td>
+      <td>${mark}</td>
+      <td>${r.totalPanels}枚</td>
+      <td style="font-size:13px;">${escapeHtml(answer)}</td>
+    </tr>`;
+  });
+  const correctCount = realResults.filter(r => r.finalCorrect).length;
+  html += `<tr style="border-top:2px solid #444466;">
+    <td style="font-weight:700;">合計</td>
+    <td colspan="3" style="font-weight:700;font-size:18px;">
+      ${correctCount} / ${realResults.length} 正解
+    </td>
+  </tr>`;
+
+  document.getElementById('summary-table').innerHTML = html;
+  showScreen('summary-screen');
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// =============================================================
+//   起動
+// =============================================================
+pollServerState();
+setInterval(pollServerState, POLL_INTERVAL);
+</script>
+</body>
+</html>
