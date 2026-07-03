@@ -957,12 +957,15 @@ function renderInfoAndAction(mode) {
       const openedFirst = (first && first.panels.length) || 0;
       if (isFirst) {
         infoEl.textContent = `選択中: ${count}枚`;
+      } else if (openedFirst >= 16) {
+        infoEl.textContent = `全パネル開放済み`;
       } else {
         infoEl.textContent = `開放済: ${openedFirst}枚 ＋ 追加: ${count}枚`;
       }
       let disabled = false;
       let label = '解答';
-      if (!isFirst && count === 0) {
+      // 2ndで0枚は原則禁止だが、1stで既に16枚全部開けていた場合は例外的に許可
+      if (!isFirst && count === 0 && openedFirst < 16) {
         disabled = true;
         label = '追加パネルを選んでください';
       }
