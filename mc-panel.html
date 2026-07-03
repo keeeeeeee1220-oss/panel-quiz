@@ -269,7 +269,7 @@ td.score-cell {
 //   ★ GASのデプロイURLを貼ってください ★
 // =============================================================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbw90vq_cB9x0zgRSwvBL9jBihemOieY8dJVDRpQwFqX6V32gdF-4qQsw5PqxmNsKKGkgw/exec';
-const POLL_INTERVAL = 3000;
+const POLL_INTERVAL = 5000;
 
 const QUESTION_LABELS = ['例題', '第1問', '第2問', '第3問', '第4問', '第5問'];
 const MAX_Q = QUESTION_LABELS.length - 1; // 5
@@ -313,7 +313,7 @@ function jsonpFetch(url) {
     s.onerror = () => { reject(new Error('通信失敗')); cleanup(); };
     s.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + cb + '&t=' + Date.now();
     document.body.appendChild(s);
-    setTimeout(() => { if (window[cb]) { reject(new Error('タイムアウト')); cleanup(); } }, 8000);
+    setTimeout(() => { if (window[cb]) { reject(new Error('タイムアウト')); cleanup(); } }, 20000);
   });
 }
 async function postJSON(payload) {
@@ -589,7 +589,10 @@ function setConn(ok, msg) {
 }
 
 // -------- ポーリング --------
+let _polling = false;
 async function poll() {
+  if (_polling) return; // 前のリクエストが終わってなければスキップ
+  _polling = true;
   try {
     const data = await jsonpFetch(GAS_URL + '?action=mc');
     if (data.error) throw new Error(data.error);
@@ -599,6 +602,8 @@ async function poll() {
     setConn(true);
   } catch (e) {
     setConn(false, e.message);
+  } finally {
+    _polling = false;
   }
 }
 
