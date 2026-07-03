@@ -648,7 +648,7 @@ function jsonpFetch(url) {
     s.onerror = () => { reject(new Error('通信失敗')); cleanup(); };
     s.src = url + (url.indexOf('?') > -1 ? '&' : '?') + 'callback=' + cb + '&t=' + Date.now();
     document.body.appendChild(s);
-    setTimeout(() => { if (window[cb]) { reject(new Error('timeout')); cleanup(); } }, 8000);
+    setTimeout(() => { if (window[cb]) { reject(new Error('timeout')); cleanup(); } }, 20000);
   });
 }
 async function postJSON(payload) {
@@ -692,8 +692,11 @@ window.addEventListener('DOMContentLoaded', () => {
 // =============================================================
 //   ポーリング
 // =============================================================
+let _polling = false;
 async function poll() {
   if (!state.playerId) return;
+  if (_polling) return; // 前のリクエストが終わってなければスキップ
+  _polling = true;
   try {
     const data = await jsonpFetch(GAS_URL + '?action=my&playerId=' + encodeURIComponent(state.playerId));
     if (data.error) throw new Error(data.error);
@@ -726,6 +729,7 @@ async function poll() {
     state.finalBonus = data.finalBonus || 0;
     render();
   } catch (e) { /* silent */ }
+  finally { _polling = false; }
 }
 
 // =============================================================
