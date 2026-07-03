@@ -92,10 +92,6 @@ img {
 
 /* ====== WAIT SCREEN ====== */
 #wait-screen { padding-top: 40px; }
-.wait-icon {
-  font-size: 60px;
-  animation: pulse 2s ease-in-out infinite;
-}
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.95); }
@@ -120,22 +116,9 @@ img {
 }
 .player-badge .divider { color: var(--text-dim); }
 .player-badge .score { color: var(--accent); font-weight: 700; }
-.review-btn {
-  margin-top: 30px;
-  padding: 12px 24px;
-  background: transparent;
-  border: 2px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.review-btn:active { transform: scale(0.96); }
 
 /* ====== ENDED SCREEN ====== */
 #ended-screen { padding-top: 60px; text-align: center; }
-.ended-icon { font-size: 80px; margin-bottom: 12px; }
 .ended-title { font-size: 28px; font-weight: 900; margin-bottom: 20px; }
 .ended-score-box {
   background: var(--surface);
@@ -454,6 +437,39 @@ img {
 }
 .review-nav button:active { transform: scale(0.97); }
 .review-nav button:disabled { opacity: 0.3; }
+
+/* Info Modal */
+.info-modal-content {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  max-width: 400px;
+  width: 100%;
+  border-radius: 12px;
+  padding: 16px;
+  gap: 12px;
+  border: 1px solid var(--border);
+}
+.info-block {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.info-block-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.info-block-content {
+  font-size: 15px;
+  line-height: 1.8;
+}
+.info-block-content b {
+  color: var(--accent);
+  font-weight: 800;
+}
 </style>
 </head>
 <body>
@@ -461,7 +477,6 @@ img {
 <!-- タイトル -->
 <div id="title-screen" class="screen active">
   <img class="logo-img" src="images/logo.png" alt="パネルクイズ">
-  <p class="subheading">隠された画像を推理せよ！</p>
   <span class="name-label">プレイヤー名</span>
   <input class="name-input" id="player-name" type="text" placeholder="名前を入力" maxlength="20">
   <button class="btn btn-primary" onclick="join()">参加する</button>
@@ -469,21 +484,17 @@ img {
 
 <!-- 待機 -->
 <div id="wait-screen" class="screen">
-  <div class="wait-icon">⏳</div>
   <p class="wait-title" id="wait-title">MCの合図を待っています</p>
-  <p class="wait-subtitle" id="wait-subtitle">まもなくゲームが始まります</p>
   <div class="player-badge">
     <span class="dot"></span>
     <span id="wait-player-name"></span>
     <span class="divider">|</span>
     <span class="score"><span id="wait-score">0</span>点</span>
   </div>
-  <button class="review-btn" id="wait-review-btn" onclick="openReview()">📖 前の問題を見返す</button>
 </div>
 
 <!-- 終了 -->
 <div id="ended-screen" class="screen">
-  <div class="ended-icon">🏁</div>
   <div class="ended-title">ゲーム終了</div>
   <div class="ended-score-box">
     あなたの得点
@@ -497,7 +508,8 @@ img {
   <div class="quiz-header">
     <span class="q-label" id="q-label">Q1</span>
     <span class="score-badge"><span class="num" id="score-num">0</span>点</span>
-    <button class="review-btn-small" id="quiz-review-btn" onclick="openReview()">📖</button>
+    <button class="review-btn-small" onclick="openInfo()">ルール</button>
+    <button class="review-btn-small" id="quiz-review-btn" onclick="openReview()">前の問題</button>
   </div>
   <div class="turn-indicator" id="turn-indicator"></div>
   <div class="quiz-board">
@@ -539,6 +551,30 @@ img {
   </div>
 </div>
 
+<!-- ルールモーダル -->
+<div id="info-modal" class="modal-overlay">
+  <div class="info-modal-content">
+    <div class="review-header">
+      <span class="review-title">ゲームルール</span>
+      <button class="review-close" onclick="closeInfo()">✕</button>
+    </div>
+    <div class="info-block">
+      <div class="info-block-label">パネルの重要度</div>
+      <div class="info-block-content">
+        🔴 赤 &gt; 🟡 黄 &gt; 🟢 緑 &gt; 🔵 青
+      </div>
+    </div>
+    <div class="info-block">
+      <div class="info-block-label">点数計算</div>
+      <div class="info-block-content">
+        1stラウンドで正解：<b>10点</b><br>
+        2ndラウンドで正解：<b>6点</b><br>
+        開けなかったパネル：<b>+1点</b> / 枚
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="questions.js?v=3"></script>
 <script>
 // =============================================================
@@ -559,6 +595,7 @@ const state = {
   mcState: { currentQuestion: -1, currentPhase: 'waiting', finalBonus: 0 },
   myQuestions: {},
   totalScore: 0,
+  finalBonus: 0,  // このプレイヤーが受け取るボーナス（0=対象外）
 
   // クライアント側の一時状態
   selectedPanels: new Set(),
@@ -567,6 +604,9 @@ const state = {
 
   reviewIndex: 0
 };
+
+// サーバー確定前の解答を保護（poll による上書きを防ぐ）
+const pendingSubmissions = {};
 
 // =============================================================
 //   ユーティリティ
@@ -658,8 +698,32 @@ async function poll() {
     const data = await jsonpFetch(GAS_URL + '?action=my&playerId=' + encodeURIComponent(state.playerId));
     if (data.error) throw new Error(data.error);
     state.mcState = data.state;
-    state.myQuestions = data.questions || {};
-    state.totalScore = data.totalScore || 0;
+
+    const serverQuestions = data.questions || {};
+    // 送信済みだがサーバー確定前の解答を保護
+    for (const qKey of Object.keys(pendingSubmissions)) {
+      const p = pendingSubmissions[qKey];
+      if (p.first) {
+        if (!serverQuestions[qKey] || !serverQuestions[qKey].first) {
+          if (!serverQuestions[qKey]) serverQuestions[qKey] = {};
+          serverQuestions[qKey].first = p.first;
+        } else {
+          delete p.first;
+        }
+      }
+      if (p.second) {
+        if (!serverQuestions[qKey] || !serverQuestions[qKey].second) {
+          if (!serverQuestions[qKey]) serverQuestions[qKey] = {};
+          serverQuestions[qKey].second = p.second;
+        } else {
+          delete p.second;
+        }
+      }
+      if (!p.first && !p.second) delete pendingSubmissions[qKey];
+    }
+
+    state.myQuestions = serverQuestions;
+    state.finalBonus = data.finalBonus || 0;
     render();
   } catch (e) { /* silent */ }
 }
@@ -671,7 +735,7 @@ function determineView() {
   const q = state.mcState.currentQuestion;
   const phase = state.mcState.currentPhase;
 
-  if (q === -1) return { screen: 'wait', title: 'MCの合図を待っています', sub: 'ゲームがまもなく始まります', canReview: false };
+  if (q === -1) return { screen: 'wait', title: 'MCの合図を待っています' };
   if (q === 99) return { screen: 'ended' };
 
   const qData = state.myQuestions[q] || {};
@@ -679,7 +743,7 @@ function determineView() {
   const second = qData.second;
 
   if (phase === 'waiting') {
-    return { screen: 'wait', title: '次の問題が始まります', sub: QUESTION_LABELS[q] + ' 開始をお待ちください', canReview: q > 0 };
+    return { screen: 'wait', title: '次の問題が始まります' };
   }
   if (phase === '1st') {
     if (first) return { screen: 'quiz', mode: 'submitted_1st' };
@@ -698,23 +762,70 @@ function determineView() {
   }
   if (phase === 'final') return { screen: 'ended' };
 
-  return { screen: 'wait', title: '接続中', sub: '' };
+  return { screen: 'wait', title: '接続中' };
+}
+
+// =============================================================
+//   表示用の得点計算（結果発表フェーズに応じて段階的に公開）
+// =============================================================
+function calculateRevealedScore() {
+  const q = state.mcState.currentQuestion;
+  const phase = state.mcState.currentPhase;
+  const questions = state.myQuestions;
+  let total = 0;
+
+  // ゲーム終了：全部公開（ボーナス含む）
+  if (q === 99) {
+    for (const qi in questions) {
+      total += questions[qi].score || 0;
+    }
+    total += state.finalBonus || 0;
+    return total;
+  }
+  if (q === -1) return 0;
+
+  // 過去の問題は全部公開
+  for (let qi = 0; qi < q; qi++) {
+    if (questions[qi]) total += questions[qi].score || 0;
+  }
+
+  // 現在の問題はフェーズで判断
+  const qData = questions[q];
+  if (qData) {
+    if (phase === '2nd_result') {
+      // 2nd結果発表：全員に公開
+      total += qData.score || 0;
+      // 最終問題なら、ボーナスもここで公開
+      if (q === 5) total += state.finalBonus || 0;
+    } else if (phase === '1st_result' || phase === '2nd') {
+      // 1st結果発表以降：1st正解者だけ公開
+      if (qData.first && qData.first.correct) {
+        total += qData.score || 0;
+      }
+    }
+  }
+  return total;
 }
 
 // =============================================================
 //   レンダリング
 // =============================================================
 function render() {
-  document.getElementById('wait-score').textContent = state.totalScore;
-  document.getElementById('ended-score-num').textContent = state.totalScore;
-  document.getElementById('score-num').textContent = state.totalScore;
+  // 入力欄の状態を保存（poll再描画で消えないよう）
+  const inp = document.getElementById('answer-input');
+  const savedValue = inp ? inp.value : null;
+  const wasFocused = document.activeElement && document.activeElement.id === 'answer-input';
+  const cursorPos = inp && wasFocused ? inp.selectionStart : null;
+
+  const revealedScore = calculateRevealedScore();
+  document.getElementById('wait-score').textContent = revealedScore;
+  document.getElementById('ended-score-num').textContent = revealedScore;
+  document.getElementById('score-num').textContent = revealedScore;
 
   const view = determineView();
   if (view.screen === 'wait') {
     showScreen('wait-screen');
     document.getElementById('wait-title').textContent = view.title;
-    document.getElementById('wait-subtitle').textContent = view.sub;
-    document.getElementById('wait-review-btn').style.display = view.canReview ? '' : 'none';
     document.getElementById('wait-player-name').textContent = state.playerName;
     return;
   }
@@ -724,6 +835,18 @@ function render() {
   }
   showScreen('quiz-screen');
   renderQuiz(view.mode);
+
+  // 入力欄の状態を復元
+  const newInp = document.getElementById('answer-input');
+  if (newInp && savedValue !== null) {
+    newInp.value = savedValue;
+    if (wasFocused) {
+      newInp.focus();
+      if (cursorPos !== null) {
+        try { newInp.setSelectionRange(cursorPos, cursorPos); } catch(e) {}
+      }
+    }
+  }
 }
 
 function renderQuiz(mode) {
@@ -870,11 +993,11 @@ function renderInfoAndAction(mode) {
   if (mode === 'result_1st') {
     infoEl.textContent = `開放: ${(first && first.panels.length) || 0}枚`;
     if (first && first.correct) {
-      actionEl.innerHTML = `<div class="result-banner correct">🎉 1st 正解！</div>`;
+      actionEl.innerHTML = `<div class="result-banner correct">1st 正解</div>`;
     } else if (first) {
-      actionEl.innerHTML = `<div class="result-banner incorrect">❌ 1st 不正解</div>`;
+      actionEl.innerHTML = `<div class="result-banner incorrect">1st 不正解</div>`;
     } else {
-      actionEl.innerHTML = `<div class="result-banner incorrect">❌ 未解答</div>`;
+      actionEl.innerHTML = `<div class="result-banner incorrect">未解答</div>`;
     }
     return;
   }
@@ -896,11 +1019,11 @@ function renderInfoAndAction(mode) {
     const total = ((first && first.panels.length) || 0) + ((second && second.panels.length) || 0);
     infoEl.textContent = `開放: ${total}枚`;
     if (first && first.correct) {
-      actionEl.innerHTML = `<div class="result-banner correct">🎉 1st 正解！</div>`;
+      actionEl.innerHTML = `<div class="result-banner correct">1st 正解</div>`;
     } else if (second && second.correct) {
-      actionEl.innerHTML = `<div class="result-banner correct">🎉 2nd 正解！</div>`;
+      actionEl.innerHTML = `<div class="result-banner correct">2nd 正解</div>`;
     } else {
-      actionEl.innerHTML = `<div class="result-banner incorrect">❌ 不正解</div>`;
+      actionEl.innerHTML = `<div class="result-banner incorrect">不正解</div>`;
     }
     return;
   }
@@ -946,15 +1069,21 @@ async function submitAnswer() {
   const round = view.mode === 'playing_1st' ? 1 : 2;
   const isCorrect = checkAnswer(answer, qDef.answers);
   const panelsArray = Array.from(state.selectedPanels).sort((a,b) => a-b);
-
-  // 楽観的更新（送信完了前でもUIをすぐ切り替え）
-  if (!state.myQuestions[q]) state.myQuestions[q] = {};
   const answerObj = { panels: panelsArray, answer, correct: isCorrect };
+
+  // 未確定として記録（次のpollで消えないよう保護）
+  if (!pendingSubmissions[q]) pendingSubmissions[q] = {};
+  if (round === 1) pendingSubmissions[q].first = answerObj;
+  else pendingSubmissions[q].second = answerObj;
+
+  // 表示用にも即反映
+  if (!state.myQuestions[q]) state.myQuestions[q] = {};
   if (round === 1) state.myQuestions[q].first = answerObj;
   else state.myQuestions[q].second = answerObj;
 
   state.selectedPanels = new Set();
   state.answerPhase = 'select';
+  render();
 
   await postJSON({
     type: 'answer',
@@ -968,7 +1097,6 @@ async function submitAnswer() {
   });
 
   setTimeout(poll, 600);
-  render();
 }
 
 // =============================================================
@@ -1005,6 +1133,16 @@ function updateReview() {
 }
 function reviewPrev() { state.reviewIndex--; updateReview(); }
 function reviewNext() { state.reviewIndex++; updateReview(); }
+
+// =============================================================
+//   ルールモーダル
+// =============================================================
+function openInfo() {
+  document.getElementById('info-modal').classList.add('active');
+}
+function closeInfo() {
+  document.getElementById('info-modal').classList.remove('active');
+}
 
 // =============================================================
 //   画像保護
