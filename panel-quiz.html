@@ -681,6 +681,22 @@ async function join() {
   await postJSON({ type: 'join', playerId: state.playerId, name });
   showScreen('wait-screen');
   poll();
+  preloadAllImages();
+}
+
+// 全問題の画像を事前ダウンロード（遷移時のラグ防止）
+function preloadAllImages() {
+  const urls = new Set();
+  if (window.QUESTIONS) {
+    window.QUESTIONS.forEach(q => {
+      if (q && q.image) urls.add(q.image);
+      if (q && q.panel) urls.add(q.panel);
+    });
+  }
+  urls.forEach(url => {
+    const img = new Image();
+    img.src = url;
+  });
 }
 
 // 保存済み名前を復元
@@ -1162,6 +1178,11 @@ document.addEventListener('dragstart', e => e.preventDefault());
 // =============================================================
 poll();
 setInterval(poll, POLL_INTERVAL);
+
+// タブがバックグラウンドから復帰したら即ポーリング（スマホロック解除等）
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) poll();
+});
 </script>
 </body>
 </html>
